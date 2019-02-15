@@ -74,7 +74,7 @@ fn file(req: Request<Body>) -> http::Result<Response<Body>> {
 
     // Get the filename (last element of the path)
     let elems = req.uri().path().split('/').collect::<Vec<_>>();
-    if elems.len() < 2 || elems[1].len() == 0 {
+    if elems.len() < 2 || elems[1].len() == 0 || !elems[1].as_bytes()[0].is_ascii_digit() {
         return Response::builder().status(StatusCode::NOT_FOUND).body(Body::empty());
     }
 
@@ -122,9 +122,9 @@ fn main() {
         (version: "0.1")
         (@arg LISTEN: -l --listen +takes_value "ip:port to listen on)")
     )
-	.get_matches();
+    .get_matches();
 
-	let listen = matches.value_of("LISTEN").unwrap_or("127.0.0.1:3000");
+    let listen = matches.value_of("LISTEN").unwrap_or("127.0.0.1:3000");
     let mut addrs = listen.to_socket_addrs().expect("cannot parse address");
     let addr = match addrs.next() {
         Some(addr) => addr,
