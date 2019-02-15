@@ -1,0 +1,11 @@
+[Unit]
+Description=Speedtest fileserver
+After=network.target
+
+[Service]
+ExecStart=/usr/sbin/speedtest-fileserver-rs
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target
+
