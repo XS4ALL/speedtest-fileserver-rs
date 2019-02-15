@@ -1,4 +1,8 @@
+#[macro_use]
+extern crate clap;
+
 use std::cmp;
+use std::net::ToSocketAddrs;
 
 use bytes::Bytes;
 use futures::prelude::*;
@@ -114,7 +118,21 @@ fn handler(req: Request<Body>) -> http::Result<Response<Body>> {
 }
 
 fn main() {
-    let addr = ([127, 0, 0, 1], 3000).into();
+    let matches = clap_app!(speedtest_fileserver_rs =>
+        (version: "0.1")
+        (@arg LISTEN: -l --listen +takes_value "ip:port to listen on)")
+    )
+	.get_matches();
+
+	let listen = matches.value_of("LISTEN").unwrap_or("127.0.0.1:3000");
+    let mut addrs = listen.to_socket_addrs().expect("cannot parse address");
+    let addr = match addrs.next() {
+        Some(addr) => addr,
+        None => {
+            eprintln!("{}: cannot resolve", listen);
+            std::process::exit(1)
+        },
+    };
 
     let server = Server::bind(&addr)
         .serve(|| service_fn(handler))
