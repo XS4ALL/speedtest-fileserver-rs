@@ -1,4 +1,4 @@
-# speedtest-xxx-mb
+# speedtest-fileserver-rs
 
 This is a server that serves random data. It accepts URLs of the form
 `http://domain.name/<size><multiplier>.<ext>`.
@@ -19,6 +19,6 @@ number of files with common sizes in the range of 1MB to 10GB.
 ## building it.
 
 First install rust, then build it with `cargo build --release`. The
-binary will be present in `target/release/speedtest_xxx_mb`.
+binary will be present in `target/release/speedtest-fileserver-rs
 
 
