@@ -11,7 +11,7 @@ http://localhost:3000/2GiB.bin
 http://localhost:3000/97KiB.bin
 ```
 
-.. and it will serve a file of therequested size consisting of random data.
+.. and it will serve a file of the requested size consisting of random data.
 
 The directory index `http://domain.name/` serves a dirlisting of a
 number of files with common sizes in the range of 1MB to 10GB.
@@ -19,6 +19,6 @@ number of files with common sizes in the range of 1MB to 10GB.
 ## building it.
 
 First install rust, then build it with `cargo build --release`. The
-binary will be present in `target/release/speedtest-fileserver-rs
+binary will be present in `target/release/speedtest-fileserver-rs`.
 
 
