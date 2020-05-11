@@ -2,17 +2,19 @@
 extern crate clap;
 
 use std::cmp;
+use std::convert::Infallible;
+use std::task::{Context, Poll};
 use std::net::ToSocketAddrs;
+use std::pin::Pin;
 
 use bytes::Bytes;
-use futures::prelude::*;
-use http;
-use hyper::service::service_fn;
-use hyper::{self, Body, Request, Response, Server, StatusCode};
-
+use http::StatusCode;
+use hyper::{Body, Request, Response, Server};
+use hyper::service::{make_service_fn, service_fn};
 use human_size::{Byte, ParsingError, Size, SpecificSize};
 use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoroshiro128StarStar;
+use tokio::stream::Stream;
 
 // Strip any extension (like .bin), then parse the remaining
 // name as size using the "human size" crate. Also allow
@@ -34,7 +36,7 @@ fn size(name: &str) -> Result<u64, ParsingError> {
 // Stream of random data.
 struct RandomStream {
     buf:        [u8; 4096],
-    rng:        Xoroshiro128StarStar,
+    rng:        Option<Xoroshiro128StarStar>,
     length:     u64,
     done:       u64,
 }
@@ -45,7 +47,7 @@ impl RandomStream {
 
         RandomStream{
             buf:    [0u8; 4096],
-            rng:    Xoroshiro128StarStar::seed_from_u64(0),
+            rng:    Some(Xoroshiro128StarStar::seed_from_u64(0)),
             length: length,
             done:   0,
         }
@@ -53,24 +55,27 @@ impl RandomStream {
 }
 
 impl Stream for RandomStream {
-    type Item = Bytes;
-    type Error = http::Error;
+    type Item = Result<Bytes, Infallible>;
 
-    fn poll(&mut self) -> Result<Async<Option<Self::Item>>, Self::Error> {
-        if self.done >= self.length {
-            Ok(Async::Ready(None))
+    fn poll_next(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<Option<Self::Item>> {
+        let this = self;
+        tokio::pin!(this);
+        if this.done >= this.length {
+            Poll::Ready(None)
         } else {
             // generate block of random data.
-            let count = cmp::min(self.length - self.done, self.buf.len() as u64);
-            self.rng.fill(&mut self.buf);
-            self.done += count;
-            Ok(Async::Ready(Some((&self.buf[0..count as usize]).into())))
+            let count = cmp::min(this.length - this.done, this.buf.len() as u64);
+            let mut rng = this.rng.take().unwrap();
+            rng.fill(&mut this.buf);
+            this.rng = Some(rng);
+            this.done += count;
+            Poll::Ready(Some(Ok(Bytes::copy_from_slice(&this.buf[0..count as usize]))))
         }
     }
 }
 
 // generate file.
-fn file(req: Request<Body>) -> http::Result<Response<Body>> {
+fn file(req: Request<Body>) -> Result<Response<Body>, http::Error> {
 
     // Get the filename (last element of the path)
     let elems = req.uri().path().split('/').collect::<Vec<_>>();
@@ -86,30 +91,27 @@ fn file(req: Request<Body>) -> http::Result<Response<Body>> {
     };
 
     // response headers.
-    let mut response = Response::builder();
-    response.header("Content-Type", "application/binary");
-    response.header("Content-Disposition", format!("attachment; filename={}", name).as_str());
-    response.header("Content-Length", sz.to_string().as_str());
-    response.header("Cache-Control", "no-cache, no-store, no-transform, must-revalidate");
-    response.header("Pragma", "no-cache");
-    response.status(StatusCode::OK);
-
-    // return a stream of random data.
-    response.body(Body::wrap_stream(RandomStream::new(sz)))
+    Response::builder()
+        .header("Content-Type", "application/binary")
+        .header("Content-Disposition", format!("attachment; filename={}", name).as_str())
+        .header("Content-Length", sz.to_string().as_str())
+        .header("Cache-Control", "no-cache, no-store, no-transform, must-revalidate")
+        .header("Pragma", "no-cache")
+        .status(StatusCode::OK)
+        .body(Body::wrap_stream(RandomStream::new(sz)))
 }
 
 // generate dirlist.
-fn dirlist() -> http::Result<Response<Body>> {
-    let mut response = Response::builder();
-    response.header("Content-Type", "text/html");
-    response.status(StatusCode::OK);
-
+fn dirlist() -> Result<Response<Body>, http::Error> {
     let index = include_str!("index.html");
-    response.body(Body::from(index))
+    Response::builder()
+        .header("Content-Type", "text/html")
+        .status(StatusCode::OK)
+        .body(Body::from(index))
 }
 
 // handler.
-fn handler(req: Request<Body>) -> http::Result<Response<Body>> {
+async fn handler(req: Request<Body>) -> Result<Response<Body>, http::Error> {
     if req.uri().path() == "/" {
         dirlist()
     } else {
@@ -117,7 +119,8 @@ fn handler(req: Request<Body>) -> http::Result<Response<Body>> {
     }
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let matches = clap_app!(speedtest_fileserver_rs =>
         (version: "0.1")
         (@arg LISTEN: -l --listen +takes_value "ip:port to listen on)")
@@ -134,11 +137,16 @@ fn main() {
         },
     };
 
-    let server = Server::bind(&addr)
-        .serve(|| service_fn(handler))
-        .map_err(|e| eprintln!("server error: {}", e));
+    let make_svc = make_service_fn(|_conn| async {
+                Ok::<_, http::Error>(service_fn(handler))
+                        });
+
+    let server = Server::bind(&addr).serve(make_svc);
 
     println!("Listening on http://{}", addr);
-    hyper::rt::run(server);
+
+    if let Err(e) = server.await {
+        eprintln!("server error: {}", e);
+    }
 }
 
