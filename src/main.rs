@@ -1,6 +1,8 @@
 #[macro_use]
 extern crate clap;
 
+mod lehmer64;
+
 use std::cmp;
 use std::convert::Infallible;
 use std::task::{Context, Poll};
@@ -13,8 +15,11 @@ use hyper::{Body, Request, Response, Server};
 use hyper::service::{make_service_fn, service_fn};
 use human_size::{Byte, ParsingError, Size, SpecificSize};
 use rand::{Rng, SeedableRng};
-use rand_xoshiro::Xoroshiro128StarStar;
+use lehmer64::Lehmer64_3 as RandomGenerator;
+
 use tokio::stream::Stream;
+
+const BUF_SIZE: usize = 8192;
 
 // Strip any extension (like .bin), then parse the remaining
 // name as size using the "human size" crate. Also allow
@@ -35,8 +40,8 @@ fn size(name: &str) -> Result<u64, ParsingError> {
 
 // Stream of random data.
 struct RandomStream {
-    buf:        [u8; 4096],
-    rng:        Option<Xoroshiro128StarStar>,
+    buf:        [u8; BUF_SIZE],
+    rng:        Option<RandomGenerator>,
     length:     u64,
     done:       u64,
 }
@@ -46,8 +51,8 @@ impl RandomStream {
     fn new(length: u64) -> RandomStream {
 
         RandomStream{
-            buf:    [0u8; 4096],
-            rng:    Some(Xoroshiro128StarStar::seed_from_u64(0)),
+            buf:    [0u8; BUF_SIZE],
+            rng:    Some(RandomGenerator::seed_from_u64(0)),
             length: length,
             done:   0,
         }
@@ -64,9 +69,10 @@ impl Stream for RandomStream {
             Poll::Ready(None)
         } else {
             // generate block of random data.
-            let count = cmp::min(this.length - this.done, this.buf.len() as u64);
+            let count = cmp::min(this.length - this.done, BUF_SIZE as u64);
             let mut rng = this.rng.take().unwrap();
-            rng.fill(&mut this.buf);
+            rng.fill(&mut this.buf[0..4096]);
+            rng.fill(&mut this.buf[4096..8192]);
             this.rng = Some(rng);
             this.done += count;
             Poll::Ready(Some(Ok(Bytes::copy_from_slice(&this.buf[0..count as usize]))))
