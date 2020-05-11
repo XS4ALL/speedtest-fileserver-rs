@@ -3,7 +3,7 @@ speedtest-fileserver (0.2) stretch buster; urgency=low
   * port to hyper 0.13 and tokio 0.2
   * replace rand_xoshiro with lehmer64_3
 
- -- Miquel van Smoorenburg <mikevs@xs4all.net>  Mon, 11 May 2020 17:40:45 +0200
+ -- Miquel van Smoorenburg (XS4ALL) <mikevs@xs4all.net>  Mon, 11 May 2020 18:30:29 +0200
 
 speedtest-fileserver (0.1) stretch; urgency=low
 
