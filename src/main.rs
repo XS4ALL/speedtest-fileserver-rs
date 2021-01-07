@@ -17,14 +17,14 @@ const CONFIG_FILE: &'static str = "/etc/speedtest-fileserver.cfg";
 #[derive(Clone, Deserialize, Debug, Default)]
 pub struct Config {
     // Settings for http.
-    http:       Option<Http>,
+    http: Option<Http>,
 
     // Settings for https.
-    https:      Option<Https>,
+    https: Option<Https>,
 
     // Use X-Forwarded-For/X-Real-Ip/Forwarded headers (unused for now).
     #[serde(rename = "xff-headers", default)]
-    pub xff:    bool,
+    pub xff: bool,
 }
 
 #[derive(Clone, Deserialize, Debug)]
@@ -39,10 +39,10 @@ pub struct Https {
     pub listen: Vec<String>,
 
     // TLS certificate chain file
-    pub chain:  String,
+    pub chain: String,
 
     // TLS certificate key file
-    pub key:    String,
+    pub key: String,
 }
 
 // Add a sockaddr to the list of listeners.
@@ -80,7 +80,7 @@ macro_rules! die {
     });
 }
 
-// add 
+// add
 fn resolve_path(dir: &str, file: &str) -> PathBuf {
     let mut p = file.parse::<PathBuf>().unwrap();
     if p.is_relative() && p.metadata().is_err() {
@@ -103,14 +103,14 @@ struct Opts {
 }
 
 async fn async_main() {
-
     // Parse options.
     let opts = Opts::from_args();
 
     // Read config file.
     let config_file = opts.config.unwrap_or(CONFIG_FILE.to_string());
     let config: Config = curlyconf::from_file(&config_file)
-        .map_err(|e| die!(std => "config: {}", e)).unwrap();
+        .map_err(|e| die!(std => "config: {}", e))
+        .unwrap();
 
     if config.http.is_none() && config.https.is_none() {
         die!(std => "{}: at least one of 'http' or 'https' must be enabled", config_file);
@@ -159,7 +159,11 @@ async fn async_main() {
         for (addr, name) in &https_listen {
             // why no try_bind_ephemeral in the TlsServer?
             let srv = warp::serve(routes.clone());
-            let srv = srv.tls().key_path(&https_key).cert_path(&https_chain).bind(addr.clone());
+            let srv = srv
+                .tls()
+                .key_path(&https_key)
+                .cert_path(&https_chain)
+                .bind(addr.clone());
             log::info!("Listening on {}", name);
             handles.push(task::spawn(srv));
         }
@@ -192,7 +196,7 @@ fn main() {
             let hook = panic::take_hook();
             panic::set_hook(Box::new(move |info| {
                 match info.payload().downcast_ref::<String>() {
-                    Some(msg) if msg.contains("error binding to") => {},
+                    Some(msg) if msg.contains("error binding to") => {}
                     _ => hook(info),
                 }
             }));
@@ -201,4 +205,3 @@ fn main() {
         .unwrap();
     rt.block_on(async_main());
 }
-
