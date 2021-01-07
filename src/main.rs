@@ -1,158 +1,204 @@
-#[macro_use]
-extern crate clap;
+use std::net::{AddrParseError, IpAddr, SocketAddr};
+use std::panic;
+use std::path::PathBuf;
+
+use futures::stream::{FuturesUnordered, StreamExt};
+use serde::Deserialize;
+use structopt::StructOpt;
+use tokio::task;
 
 mod lehmer64;
+//mod remoteip;
+mod server;
 
-use std::cmp;
-use std::convert::Infallible;
-use std::task::{Context, Poll};
-use std::net::ToSocketAddrs;
-use std::pin::Pin;
+const CONFIG_FILE: &'static str = "/etc/speedtest-fileserver.cfg";
 
-use bytes::Bytes;
-use http::StatusCode;
-use hyper::{Body, Request, Response, Server};
-use hyper::service::{make_service_fn, service_fn};
-use human_size::{Byte, ParsingError, Size, SpecificSize};
-use rand::{Rng, SeedableRng};
-use lehmer64::Lehmer64_3 as RandomGenerator;
+// Configuration file settings.
+#[derive(Clone, Deserialize, Debug, Default)]
+pub struct Config {
+    // Settings for http.
+    http:       Option<Http>,
 
-use tokio::stream::Stream;
+    // Settings for https.
+    https:      Option<Https>,
 
-const BUF_SIZE: usize = 8192;
-
-// Strip any extension (like .bin), then parse the remaining
-// name as size using the "human size" crate. Also allow
-// lowercase variants (like 1000mb.bin).
-fn size(name: &str) -> Result<u64, ParsingError> {
-    let name = name.split(".").next().unwrap();
-    let name = name.replace("kb", "kB");
-    let name = name.replace("KB", "kB");
-    let sz: Size = match name.parse() {
-        Ok(sz) => sz,
-        Err(_) => {
-            name.to_uppercase().parse()?
-        },
-    };
-    let sz: SpecificSize<Byte> = sz.into();
-    Ok(sz.value() as u64)
+    // Use X-Forwarded-For/X-Real-Ip/Forwarded headers (unused for now).
+    #[serde(rename = "xff-headers", default)]
+    pub xff:    bool,
 }
 
-// Stream of random data.
-struct RandomStream {
-    buf:        [u8; BUF_SIZE],
-    rng:        Option<RandomGenerator>,
-    length:     u64,
-    done:       u64,
+#[derive(Clone, Deserialize, Debug)]
+pub struct Http {
+    // [addr:]port to listen on (4000)
+    pub listen: Vec<String>,
 }
 
-impl RandomStream {
-    // create a new RandomStream.
-    fn new(length: u64) -> RandomStream {
+#[derive(Clone, Deserialize, Debug)]
+pub struct Https {
+    // [addr:]port to listen on (4000)
+    pub listen: Vec<String>,
 
-        RandomStream{
-            buf:    [0u8; BUF_SIZE],
-            rng:    Some(RandomGenerator::seed_from_u64(0)),
-            length: length,
-            done:   0,
-        }
+    // TLS certificate chain file
+    pub chain:  String,
+
+    // TLS certificate key file
+    pub key:    String,
+}
+
+// Add a sockaddr to the list of listeners.
+// If "addr" specifies just a port, add two sockaddrs: one for IPv4, one for IPv6.
+fn add_listener(addr: &str, listen: &mut Vec<(SocketAddr, String)>) -> Result<(), AddrParseError> {
+    if let Ok(port) = addr.parse::<u16>() {
+        listen.push((
+            SocketAddr::new(IpAddr::V4(0u32.into()), port),
+            format!("*:{}", port),
+        ));
+        listen.push((
+            SocketAddr::new(IpAddr::V6(0u128.into()), port),
+            format!("[::]:{}", port),
+        ));
+        return Ok(());
     }
-}
-
-impl Stream for RandomStream {
-    type Item = Result<Bytes, Infallible>;
-
-    fn poll_next(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<Option<Self::Item>> {
-        let this = self;
-        tokio::pin!(this);
-        if this.done >= this.length {
-            Poll::Ready(None)
-        } else {
-            // generate block of random data.
-            let count = cmp::min(this.length - this.done, BUF_SIZE as u64);
-            let mut rng = this.rng.take().unwrap();
-            rng.fill(&mut this.buf[0..4096]);
-            rng.fill(&mut this.buf[4096..8192]);
-            this.rng = Some(rng);
-            this.done += count;
-            Poll::Ready(Some(Ok(Bytes::copy_from_slice(&this.buf[0..count as usize]))))
-        }
-    }
-}
-
-// generate file.
-fn file(req: Request<Body>) -> Result<Response<Body>, http::Error> {
-
-    // Get the filename (last element of the path)
-    let elems = req.uri().path().split('/').collect::<Vec<_>>();
-    if elems.len() < 2 || elems[1].len() == 0 || !elems[1].as_bytes()[0].is_ascii_digit() {
-        return Response::builder().status(StatusCode::NOT_FOUND).body(Body::empty());
-    }
-
-    // parse it as a size.
-    let name = elems[1];
-    let sz = match size(name) {
-        Ok(sz) => sz,
-        Err(_) => return Response::builder().status(StatusCode::BAD_REQUEST).body(Body::empty()),
-    };
-
-    // response headers.
-    Response::builder()
-        .header("Content-Type", "application/binary")
-        .header("Content-Disposition", format!("attachment; filename={}", name).as_str())
-        .header("Content-Length", sz.to_string().as_str())
-        .header("Cache-Control", "no-cache, no-store, no-transform, must-revalidate")
-        .header("Pragma", "no-cache")
-        .status(StatusCode::OK)
-        .body(Body::wrap_stream(RandomStream::new(sz)))
-}
-
-// generate dirlist.
-fn dirlist() -> Result<Response<Body>, http::Error> {
-    let index = include_str!("index.html");
-    Response::builder()
-        .header("Content-Type", "text/html")
-        .status(StatusCode::OK)
-        .body(Body::from(index))
-}
-
-// handler.
-async fn handler(req: Request<Body>) -> Result<Response<Body>, http::Error> {
-    if req.uri().path() == "/" {
-        dirlist()
+    // "*:port" is IPv4 wildcard. "[::]:port" for IPv6.
+    if addr.starts_with("*") {
+        let addr2 = addr.replacen("*", "0.0.0.0", 1);
+        listen.push((addr2.parse::<SocketAddr>()?, addr.to_string()));
     } else {
-        file(req)
+        listen.push((addr.parse::<SocketAddr>()?, addr.to_string()));
     }
+    Ok(())
 }
 
-#[tokio::main]
-async fn main() {
-    let matches = clap_app!(speedtest_fileserver_rs =>
-        (version: "0.1")
-        (@arg LISTEN: -l --listen +takes_value "ip:port to listen on)")
-    )
-    .get_matches();
+macro_rules! die {
+    (log => $($tt:tt)*) => ({
+        log::error!($($tt)*);
+        std::process::exit(1);
+    });
+    (std => $($tt:tt)*) => ({
+        eprintln!($($tt)*);
+        std::process::exit(1);
+    });
+}
 
-    let listen = matches.value_of("LISTEN").unwrap_or("127.0.0.1:3000");
-    let mut addrs = listen.to_socket_addrs().expect("cannot parse address");
-    let addr = match addrs.next() {
-        Some(addr) => addr,
-        None => {
-            eprintln!("{}: cannot resolve", listen);
-            std::process::exit(1)
-        },
-    };
-
-    let make_svc = make_service_fn(|_conn| async {
-                Ok::<_, http::Error>(service_fn(handler))
-                        });
-
-    let server = Server::bind(&addr).serve(make_svc);
-
-    println!("Listening on http://{}", addr);
-
-    if let Err(e) = server.await {
-        eprintln!("server error: {}", e);
+// add 
+fn resolve_path(dir: &str, file: &str) -> PathBuf {
+    let mut p = file.parse::<PathBuf>().unwrap();
+    if p.is_relative() && p.metadata().is_err() {
+        let mut d = dir.parse::<PathBuf>().unwrap();
+        d.push(&p);
+        p = d;
     }
+    if let Err(e) = p.metadata() {
+        die!(std => "{:?}: {}", p, e);
+    }
+    p
+}
+
+#[derive(Debug, StructOpt)]
+#[structopt(name = "speedtest-fileserver", about = "Speedtest file server.")]
+struct Opts {
+    /// location of config file.
+    #[structopt(short, long)]
+    config: Option<String>,
+}
+
+async fn async_main() {
+
+    // Parse options.
+    let opts = Opts::from_args();
+
+    // Read config file.
+    let config_file = opts.config.unwrap_or(CONFIG_FILE.to_string());
+    let config: Config = curlyconf::from_file(&config_file)
+        .map_err(|e| die!(std => "config: {}", e)).unwrap();
+
+    if config.http.is_none() && config.https.is_none() {
+        die!(std => "{}: at least one of 'http' or 'https' must be enabled", config_file);
+    }
+
+    // Parse the http config section.
+    let mut http_listen = Vec::new();
+    if let Some(http) = config.http.as_ref() {
+        for l in &http.listen {
+            if let Err(e) = add_listener(l, &mut http_listen) {
+                die!(std => "{}: {}", l, e);
+            }
+        }
+    }
+
+    // Parse the https config section.
+    let mut https_listen = Vec::new();
+    let https = config.https.as_ref().map(|https| {
+        for l in &https.listen {
+            if let Err(e) = add_listener(l, &mut https_listen) {
+                die!(std => "{}: {}", l, e);
+            }
+        }
+        let https_key = resolve_path("/etc/ssl/private", &https.key);
+        let https_chain = resolve_path("/etc/ssl/certs", &https.chain);
+        (https_key, https_chain)
+    });
+
+    // build routes.
+    let server = server::FileServer::new(&config);
+    let routes = server.routes();
+
+    // Run all servers.
+    let mut handles = Vec::new();
+    for (addr, name) in &http_listen {
+        match warp::serve(routes.clone()).try_bind_ephemeral(addr.clone()) {
+            Ok((_, srv)) => {
+                log::info!("Listening on {}", name);
+                handles.push(task::spawn(srv));
+            }
+            Err(e) => die!(log => "{}: {}", name, e),
+        }
+    }
+
+    if let Some((https_key, https_chain)) = https {
+        for (addr, name) in &https_listen {
+            // why no try_bind_ephemeral in the TlsServer?
+            let srv = warp::serve(routes.clone());
+            let srv = srv.tls().key_path(&https_key).cert_path(&https_chain).bind(addr.clone());
+            log::info!("Listening on {}", name);
+            handles.push(task::spawn(srv));
+        }
+    }
+
+    // The tasks should never return, only on error. So _if_ one
+    // returns, abort the entire process.
+    let mut task_waiter = FuturesUnordered::new();
+    for handle in handles.drain(..) {
+        task_waiter.push(handle);
+    }
+    if let Some(Err(err)) = task_waiter.next().await {
+        if let Ok(cause) = err.try_into_panic() {
+            if let Some(err) = cause.downcast_ref::<String>() {
+                die!(log => "fatal: {}", err);
+            }
+        }
+    }
+    die!(log => "server exited unexpectedly");
+}
+
+fn main() {
+    let env = env_logger::Env::default().default_filter_or("info");
+    env_logger::init_from_env(env);
+
+    let mut rt = tokio::runtime::Builder::new()
+        .threaded_scheduler()
+        .enable_all()
+        .on_thread_start(|| {
+            let hook = panic::take_hook();
+            panic::set_hook(Box::new(move |info| {
+                match info.payload().downcast_ref::<String>() {
+                    Some(msg) if msg.contains("error binding to") => {},
+                    _ => hook(info),
+                }
+            }));
+        })
+        .build()
+        .unwrap();
+    rt.block_on(async_main());
 }
 

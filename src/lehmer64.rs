@@ -7,22 +7,19 @@ pub struct Lehmer64_3 {
 	pos:		u32,
 }
 
+#[inline]
+fn mul(a: &mut u128, b: u128) {
+    *a = u128::overflowing_mul(*a, b).0;
+}
+
 impl Lehmer64_3 {
     #[inline]
 	fn next(&mut self) -> u64 {
 		self.pos += 1;
 		if self.pos == 3 {
-            /*
-            let (x, _) = u128::overflowing_mul(self.state[0], 0xda942042e4dd58b5u128);
-            self.state[0] = x;
-            let (x, _) = u128::overflowing_mul(self.state[1], 0xda942042e4dd58b5u128);
-            self.state[1] = x;
-            let (x, _) = u128::overflowing_mul(self.state[2], 0xda942042e4dd58b5u128);
-            self.state[2] = x;
-            */
-            self.state[0] *= 0xda942042e4dd58b5u128;
-            self.state[1] *= 0xda942042e4dd58b5u128;
-            self.state[2] *= 0xda942042e4dd58b5u128;
+            mul(&mut self.state[0], 0xda942042e4dd58b5u128);
+            mul(&mut self.state[1], 0xda942042e4dd58b5u128);
+            mul(&mut self.state[2], 0xda942042e4dd58b5u128);
 			self.pos = 0;
 		}
 		(self.state[self.pos as usize] >> 64) as u64

@@ -1,1 +1,2 @@
 target/release/speedtest-fileserver-rs	usr/sbin
+speedtest-fileserver.cfg etc

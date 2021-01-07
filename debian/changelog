@@ -1,3 +1,11 @@
+speedtest-fileserver (1.0) buster; urgency=low
+
+  * port to warp instead of hyper, so we can have TLS support
+  * add configuration file with settings for http/https
+  * add example NGINX proxy config file.
+
+ -- Miquel van Smoorenburg (XS4ALL) <mikevs@xs4all.net>  Thu, 07 Jan 2021 18:46:52 +0100
+
 speedtest-fileserver (0.2) stretch buster; urgency=low
 
   * port to hyper 0.13 and tokio 0.2
