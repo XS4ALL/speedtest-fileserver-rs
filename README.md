@@ -3,12 +3,12 @@
 This is a server that serves random data. It accepts URLs of the form
 `http://domain.name/<size><multiplier>.<ext>` (or https).
 
-For example, when running on localhost port 4000:
+For example, when running on localhost port 3000:
 
 ```
-http://localhost:4000/10MB.bin
-http://localhost:4000/2GiB.bin
-http://localhost:4000/97KiB.bin
+http://localhost:3000/10MB.bin
+http://localhost:3000/2GiB.bin
+http://localhost:3000/97KiB.bin
 ```
 
 .. and it will serve a file of the requested size consisting of random data.

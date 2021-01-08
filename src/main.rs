@@ -39,13 +39,13 @@ pub struct Index {
 
 #[derive(Clone, Deserialize, Debug)]
 pub struct Http {
-    // [addr:]port to listen on (4000)
+    // [addr:]port to listen on.
     pub listen: Vec<String>,
 }
 
 #[derive(Clone, Deserialize, Debug)]
 pub struct Https {
-    // [addr:]port to listen on (4000)
+    // [addr:]port to listen on.
     pub listen: Vec<String>,
 
     // TLS certificate chain file
@@ -56,13 +56,18 @@ pub struct Https {
 }
 
 // Add a sockaddr to the list of listeners.
-// If "addr" specifies just a port, add two sockaddrs: one for IPv4, one for IPv6.
+//
+// If "addr" specifies just a port, we should add two sockaddrs: one for IPv4, one for IPv6.
+// However, right now warp doesn't know about `v6_only`, so for now just bind to
+// an IPv6 socket, which (at least on linux/freebsd) is dual-stack.
+//
 fn add_listener(addr: &str, listen: &mut Vec<(SocketAddr, String)>) -> Result<(), AddrParseError> {
     if let Ok(port) = addr.parse::<u16>() {
+        /*
         listen.push((
             SocketAddr::new(IpAddr::V4(0u32.into()), port),
             format!("*:{}", port),
-        ));
+        ));*/
         listen.push((
             SocketAddr::new(IpAddr::V6(0u128.into()), port),
             format!("[::]:{}", port),
