@@ -11,12 +11,15 @@ curlyconf = { version = "0.1.0-alpha.6" }
 env_logger = "0.8.2"
 futures = "0.3"
 http = "0.2"
+handlebars = "3.5.2"
 hyper = "0.13"
 human-size = "0.4.0"
 log = "0.4.8"
+once_cell = "1.4.0"
 rand = "0.7.3"
 rand_core = "0.5"
 serde = { version = "1.0.114", features = [ "derive" ] }
 structopt = "0.3.15"
 tokio = { version = "0.2", features = [ "io-driver", "macros", "net", "rt-threaded", "stream", "time" ] }
 warp = { version = "0.2.5", default-features = false, features = [ "tls" ] }
+woothee = "0.11"

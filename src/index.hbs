@@ -1,0 +1,67 @@
+<html>
+<head>
+  <title>Speedtest download</title>
+  <style>
+    body {
+      font-family: Arial, Verdana, sans-serif, serif;
+    }
+    table {
+      border-collapse: separate;
+      border-spacing: 2.5em 0.25em;
+      -webkit-border-horizontal-spacing: 2.5em;
+      -webkit-border-vertical-spacing: 0.25em;
+    }
+    h1 {
+      padding-left: 0.3em;
+    }
+    .mono {
+      font-family: monospace;
+    }
+    .h2 {
+      font-size: 1.2em;
+    }
+  </style>
+</head>
+<body>
+<h1>Speedtest - file download test</h1>
+
+{{#if (eq browser.category "pc")}}
+  <div class="h2">
+  {{#if (and (contains browser.os "Mac") (eq browser.name "Safari"))}}
+    To watch the speed and follow the progress of the download,<br>press key combination: ⌥⌘L .
+  {{/if}}
+  {{#if (and (contains browser.os "Mac") (eq browser.name "Chrome"))}}
+    To watch the speed and follow the progress of the download,<br>press key combination: ⌥⌘L .
+  {{/if}}
+  {{#if (and (contains browser.os "Mac") (eq browser.name "Firefox"))}}
+    To watch the speed and follow the progress of the download,<br>press key combination: ⌘J .
+  {{/if}}
+  {{#if (eq browser.os "Windows")}}
+    To watch the speed and follow the progress of the download,<br>press key combination: Ctrl+J.
+  {{/if}}
+  </div>
+  <p></p>
+{{/if}}
+
+<table>
+  <tr><th>Name</th><th>Last modified</th><th>Size</th></tr>
+  <tr><th colspan="3"><hr></th></tr>
+
+  <tr>
+    <td><a href="..">Parent Directory</a></td>
+    <td>&nbsp;</td>
+    <td class="mono" align="right">[DIR]</td>
+  </tr>
+
+  {{#each sizes}}
+  <tr>
+    <td><a href="{{this}}.bin">{{this}}.bin</a></td>
+    <td class="mono">2018-23-01 13:37</td>
+    <td class="mono" align="right">{{size(this)}}</td>
+  </tr>
+  {{/each}}
+
+  <tr><th colspan="3"><hr></th></tr>
+</table>
+</body>
+</html>

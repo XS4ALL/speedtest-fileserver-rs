@@ -10,11 +10,12 @@ use tokio::task;
 mod lehmer64;
 //mod remoteip;
 mod server;
+mod template;
 
 const CONFIG_FILE: &'static str = "/etc/speedtest-fileserver.cfg";
 
 // Configuration file settings.
-#[derive(Clone, Deserialize, Debug, Default)]
+#[derive(Clone, Deserialize, Debug)]
 pub struct Config {
     // Settings for http.
     http: Option<Http>,
@@ -22,9 +23,18 @@ pub struct Config {
     // Settings for https.
     https: Option<Https>,
 
+    // Settings for the index file.
+    pub index: Index,
+
     // Use X-Forwarded-For/X-Real-Ip/Forwarded headers (unused for now).
     #[serde(rename = "xff-headers", default)]
     pub xff: bool,
+}
+
+#[derive(Clone, Deserialize, Debug)]
+pub struct Index {
+    pub file: Option<PathBuf>,
+    pub sizes: Vec<String>,
 }
 
 #[derive(Clone, Deserialize, Debug)]

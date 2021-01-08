@@ -15,8 +15,9 @@ use tokio::stream::{Stream, StreamExt};
 use tokio::time::{Duration, Instant};
 use warp::{filters::BoxedFilter, Filter, Reply};
 
-use crate::lehmer64::Lehmer64_3 as RandomGenerator;
 use crate::Config;
+use crate::lehmer64::Lehmer64_3 as RandomGenerator;
+use crate::template;
 
 // Relative timeout.
 const SEND_TIMEOUT: Duration = Duration::from_secs(20);
@@ -36,12 +37,15 @@ impl FileServer {
         }
     }
 
-    fn index(&self) -> http::Result<http::Response<hyper::Body>> {
-        let index = include_str!("index.html");
+    fn index(&self, agent: String, config: &Config) -> http::Result<http::Response<hyper::Body>> {
+        let (text, ct, status) = match template::build(config, agent) {
+            Ok(index) => (index, "text/html; charset=utf-8", StatusCode::OK),
+            Err(e) => (e.to_string(), "text/plain", StatusCode::INTERNAL_SERVER_ERROR),
+        };
         Response::builder()
-            .header("Content-Type", "text/html")
-            .status(StatusCode::OK)
-            .body(Body::from(index))
+            .header("Content-Type", ct)
+            .status(status)
+            .body(Body::from(text))
     }
 
     // Generate a streaming response with random data.
@@ -95,8 +99,11 @@ impl FileServer {
 
     // bundle up "index" and "data" into one Filter.
     pub fn routes(&self) -> BoxedFilter<(impl Reply,)> {
+        let config = self.config.clone();
         let this = self.clone();
-        let index = warp::path::end().map(move || this.index());
+        let index = warp::path::end()
+            .and(warp::header("user-agent"))
+            .map(move |agent: String| this.index(agent, &config));
 
         let this = self.clone();
         let data = warp::path::param()
@@ -114,7 +121,7 @@ const BUF_SIZE: usize = CHUNK_SIZE * NUM_CHUNKS;
 // Strip any extension (like .bin), then parse the remaining
 // name as size using the "human size" crate. Also allow
 // lowercase variants (like 1000mb.bin).
-fn size(name: &str) -> Result<u64, ParsingError> {
+pub fn size(name: &str) -> Result<u64, ParsingError> {
     let name = name.split(".").next().unwrap();
     let name = name.replace("kb", "kB");
     let name = name.replace("KB", "kB");
