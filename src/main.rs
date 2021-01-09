@@ -27,6 +27,10 @@ pub struct Config {
     // Settings for the index file.
     pub index: Index,
 
+    // max file size.
+    #[serde(rename = "max-file-size", deserialize_with = "deserialize_size")]
+    pub max_file_size: Option<u64>,
+
     // Use X-Forwarded-For/X-Real-Ip/Forwarded headers (unused for now).
     #[serde(rename = "xff-headers", default)]
     pub xff: bool,
@@ -221,3 +225,15 @@ fn main() {
         .unwrap();
     rt.block_on(async_main());
 }
+
+use serde::de;
+
+// helper.
+fn deserialize_size<'de, D>(deserializer: D) -> Result<Option<u64>, D::Error>
+where
+    D: de::Deserializer<'de>,
+{
+    let s: &str = de::Deserialize::deserialize(deserializer)?;
+    server::size(s).map(Some).map_err(de::Error::custom)
+}
+

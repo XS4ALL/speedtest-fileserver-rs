@@ -16,8 +16,8 @@ use crate::template;
 // Relative timeout.
 const SEND_TIMEOUT: Duration = Duration::from_secs(20);
 
-// 10GB is the max size we support, set actual max a bit higher.
-const MAX_SIZE: u64 = 11_000_000_000;
+// 10GiB is the default max size we support.
+const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024 * 1024;
 
 #[derive(Clone)]
 pub struct FileServer {
@@ -44,9 +44,11 @@ impl FileServer {
 
     // Generate a streaming response with random data.
     fn data(&self, filename: String) -> http::Result<http::Response<hyper::Body>> {
+        let max_size = self.config.max_file_size.unwrap_or(MAX_FILE_SIZE);
+
         // parse size.
         let sz = match size(&filename) {
-            Ok(sz) if sz > MAX_SIZE => {
+            Ok(sz) if sz > max_size => {
                 return Response::builder()
                     .status(StatusCode::BAD_REQUEST)
                     .body(Body::from("too big"))
