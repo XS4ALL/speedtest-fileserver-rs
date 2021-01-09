@@ -9,6 +9,7 @@ use tokio::task;
 
 mod lehmer64;
 //mod remoteip;
+mod randomstream;
 mod server;
 mod template;
 

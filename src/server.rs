@@ -1,22 +1,16 @@
 //! All the actual API handlers.
 //!
-use std::cmp;
-use std::convert::Infallible;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
 
-use bytes::Bytes;
 use http::{Response, StatusCode};
 use human_size::{Byte, ParsingError, Size, SpecificSize};
 use hyper::body::Body;
-use rand::{Rng, SeedableRng};
-use tokio::stream::{Stream, StreamExt};
+use tokio::stream::StreamExt;
 use tokio::time::{Duration, Instant};
 use warp::{filters::BoxedFilter, Filter, Reply};
 
 use crate::Config;
-use crate::lehmer64::Lehmer64_3 as RandomGenerator;
+use crate::randomstream::RandomStream;
 use crate::template;
 
 // Relative timeout.
@@ -114,10 +108,6 @@ impl FileServer {
     }
 }
 
-const CHUNK_SIZE: usize = 4096;
-const NUM_CHUNKS: usize = 4;
-const BUF_SIZE: usize = CHUNK_SIZE * NUM_CHUNKS;
-
 // Strip any extension (like .bin), then parse the remaining
 // name as size using the "human size" crate. Also allow
 // lowercase variants (like 1000mb.bin).
@@ -133,48 +123,3 @@ pub fn size(name: &str) -> Result<u64, ParsingError> {
     Ok(sz.value() as u64)
 }
 
-// Stream of random data.
-struct RandomStream {
-    buf: [u8; BUF_SIZE],
-    rng: Option<RandomGenerator>,
-    length: u64,
-    done: u64,
-}
-
-impl RandomStream {
-    // create a new RandomStream.
-    fn new(length: u64) -> RandomStream {
-        RandomStream {
-            buf: [0u8; BUF_SIZE],
-            rng: Some(RandomGenerator::seed_from_u64(0)),
-            length: length,
-            done: 0,
-        }
-    }
-}
-
-impl Stream for RandomStream {
-    type Item = Result<Bytes, Infallible>;
-
-    fn poll_next(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<Option<Self::Item>> {
-        let this = self;
-        tokio::pin!(this);
-        if this.done >= this.length {
-            Poll::Ready(None)
-        } else {
-            // generate block of random data.
-            let count = cmp::min(this.length - this.done, BUF_SIZE as u64);
-            let mut rng = this.rng.take().unwrap();
-            for i in 0..NUM_CHUNKS {
-                let start = i * CHUNK_SIZE;
-                let end = (i + 1) * CHUNK_SIZE;
-                rng.fill(&mut this.buf[start..end]);
-            }
-            this.rng = Some(rng);
-            this.done += count;
-            Poll::Ready(Some(Ok(Bytes::copy_from_slice(
-                &this.buf[0..count as usize],
-            ))))
-        }
-    }
-}
