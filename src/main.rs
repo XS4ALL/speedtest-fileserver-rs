@@ -242,6 +242,6 @@ fn deserialize_size<'de, D>(deserializer: D) -> Result<Option<u64>, D::Error>
 where
     D: de::Deserializer<'de>,
 {
-    let s: &str = de::Deserialize::deserialize(deserializer)?;
-    server::size(s).map(Some).map_err(de::Error::custom)
+    let s: String = de::Deserialize::deserialize(deserializer)?;
+    server::size(&s).map(Some).map_err(de::Error::custom)
 }
