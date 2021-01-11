@@ -176,6 +176,7 @@ impl LogInfo {
         let addr = addr
             .map(|a| a.ip().to_string())
             .unwrap_or(String::from("unknown"));
+        let addr = if addr.starts_with("::ffff:") { &addr[7..] } else { &addr };
 
         let now: DateTime<Local> = Local::now();
         let timestamp = now.format("%d/%b/%Y:%H:%M:%S %z");
