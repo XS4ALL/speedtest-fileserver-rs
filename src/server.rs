@@ -1,17 +1,20 @@
+//!
 //! All the actual API handlers.
 //!
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use http::{Response, StatusCode};
 use human_size::{Byte, ParsingError, Size, SpecificSize};
 use hyper::body::Body;
 use tokio::stream::StreamExt;
 use tokio::time::{Duration, Instant};
+use warp::reply::Response as HyperResponse;
 use warp::{filters::BoxedFilter, Filter, Reply};
 
-use crate::Config;
+use crate::logger::LogInfo;
 use crate::randomstream::RandomStream;
 use crate::template;
+use crate::Config;
 
 // Relative timeout.
 const SEND_TIMEOUT: Duration = Duration::from_secs(20);
@@ -22,19 +25,26 @@ const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024 * 1024;
 #[derive(Clone)]
 pub struct FileServer {
     config: Arc<Config>,
+    access_log: Option<Arc<Mutex<String>>>,
 }
 
 impl FileServer {
     pub fn new(config: &Config) -> FileServer {
+        let access_log = config.access_log.clone();
         FileServer {
             config: Arc::new(config.clone()),
+            access_log: access_log.map(|a| Arc::new(Mutex::new(a))),
         }
     }
 
-    fn index(&self, agent: String, config: &Config) -> http::Result<http::Response<hyper::Body>> {
+    fn index(&self, agent: String, config: &Config) -> http::Result<HyperResponse> {
         let (text, ct, status) = match template::build(config, agent) {
             Ok(index) => (index, "text/html; charset=utf-8", StatusCode::OK),
-            Err(e) => (e.to_string(), "text/plain", StatusCode::INTERNAL_SERVER_ERROR),
+            Err(e) => (
+                e.to_string(),
+                "text/plain",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ),
         };
         Response::builder()
             .header("Content-Type", ct)
@@ -43,7 +53,7 @@ impl FileServer {
     }
 
     // Generate a streaming response with random data.
-    fn data(&self, filename: String) -> http::Result<http::Response<hyper::Body>> {
+    fn data(&self, filename: String, mut log_info: LogInfo) -> http::Result<HyperResponse> {
         let max_size = self.config.max_file_size.unwrap_or(MAX_FILE_SIZE);
 
         // parse size.
@@ -55,9 +65,20 @@ impl FileServer {
             }
             Ok(sz) => sz,
             Err(_) => {
-                return Response::builder()
-                    .status(StatusCode::BAD_REQUEST)
-                    .body(Body::from("cannot parse size"))
+                let is_num = filename
+                    .chars()
+                    .next()
+                    .map(|c| c.is_numeric())
+                    .unwrap_or(false);
+                if is_num {
+                    return Response::builder()
+                        .status(StatusCode::BAD_REQUEST)
+                        .body(Body::from("cannot parse size"));
+                } else {
+                    return Response::builder()
+                        .status(StatusCode::NOT_FOUND)
+                        .body(Body::from("Not Found"));
+                };
             }
         };
 
@@ -77,7 +98,7 @@ impl FileServer {
         });
 
         // response headers and body.
-        Response::builder()
+        let resp = Response::builder()
             .header("Content-Type", "application/binary")
             .header(
                 "Content-Disposition",
@@ -89,8 +110,27 @@ impl FileServer {
                 "no-cache, no-store, no-transform, must-revalidate",
             )
             .header("Pragma", "no-cache")
-            .status(StatusCode::OK)
-            .body(Body::wrap_stream(stream))
+            .status(StatusCode::OK);
+        log_info.log_on_drop(self.access_log.clone(), self.config.xff);
+        log_info.wrap(resp, stream)
+    }
+
+    fn log(&self, info: warp::log::Info) {
+        // Don't log streams here.
+        let is_num = info
+            .path()
+            .chars()
+            .next()
+            .map(|c| c.is_numeric())
+            .unwrap_or(false);
+        if is_num && info.status() == http::StatusCode::OK {
+            return;
+        }
+
+        // Do log everything else.
+        let mut log_info =
+            LogInfo::from_warp_log_info(info, self.access_log.clone(), self.config.xff);
+        log_info.log();
     }
 
     // bundle up "index" and "data" into one Filter.
@@ -104,9 +144,13 @@ impl FileServer {
         let this = self.clone();
         let data = warp::path::param()
             .and(warp::path::end())
-            .map(move |param: String| this.data(param));
+            .and(LogInfo::new())
+            .map(move |param: String, log_info: LogInfo| this.data(param, log_info));
 
-        data.or(index).boxed()
+        let this = self.clone();
+        data.or(index)
+            .with(warp::log::custom(move |info| this.log(info)))
+            .boxed()
     }
 }
 
@@ -124,4 +168,3 @@ pub fn size(name: &str) -> Result<u64, ParsingError> {
     let sz: SpecificSize<Byte> = sz.into();
     Ok(sz.value() as u64)
 }
-

@@ -5,14 +5,13 @@ use warp::Filter;
 
 // Get the first IP address from a comma-separared list.
 fn parse_xff(s: &str) -> Option<SocketAddr> {
-    s.split(",").next()
-        .map(|s| s.trim())
-        .and_then(|s| {
-            // Now try to parse as IpAddr or SocketAddr.
-            s.parse::<IpAddr>().map(|i| SocketAddr::new(i, 0))
-                .or_else(|_| s.parse::<SocketAddr>())
-                .ok()
-        })
+    s.split(",").next().map(|s| s.trim()).and_then(|s| {
+        // Now try to parse as IpAddr or SocketAddr.
+        s.parse::<IpAddr>()
+            .map(|i| SocketAddr::new(i, 0))
+            .or_else(|_| s.parse::<SocketAddr>())
+            .ok()
+    })
 }
 
 // Get the first for=<ipaddress>.
@@ -20,19 +19,30 @@ fn parse_fwd(s: &str) -> Option<SocketAddr> {
     // Of a list of comma-separated fields, get the first one.
     let field = s.split(",").map(|s| s.trim()).next()?;
     // Then split at ';' into fields again, lowercase, and find "for="
-    field.split(";")
+    field
+        .split(";")
         .map(|s| s.trim().to_lowercase())
         .find(|s| s.starts_with("for="))
         .and_then(|s| {
             let s = s[4..].trim_matches('"');
             // Now try to parse as IpAddr or SocketAddr.
-            s.parse::<IpAddr>().map(|i| SocketAddr::new(i, 0))
+            s.parse::<IpAddr>()
+                .map(|i| SocketAddr::new(i, 0))
                 .or_else(|_| s.parse::<SocketAddr>())
                 .ok()
         })
 }
 
-fn parse_remoteip(addr: Option<SocketAddr>, xff_headers: bool, xff: Option<String>, xri: Option<String>, fwd: Option<String>) -> Option<SocketAddr> {
+pub fn parse(
+    addr: Option<SocketAddr>,
+    xff_headers: bool,
+    xff: Option<impl AsRef<str>>,
+    xri: Option<impl AsRef<str>>,
+    fwd: Option<impl AsRef<str>>,
+) -> Option<SocketAddr> {
+    let xff = xff.as_ref().map(|s| s.as_ref());
+    let xri = xri.as_ref().map(|s| s.as_ref());
+    let fwd = fwd.as_ref().map(|s| s.as_ref());
     let is_loopback = match addr {
         Some(SocketAddr::V4(ref addr)) => addr.ip().is_loopback(),
         Some(SocketAddr::V6(ref addr)) => addr.ip().is_loopback(),
@@ -62,13 +72,18 @@ fn parse_remoteip(addr: Option<SocketAddr>, xff_headers: bool, xff: Option<Strin
 }
 
 /// Like `warp::addr::remote()` but also takes XFF into account.
-pub fn remoteip(do_xff: bool) -> impl Filter<Extract = (Option<SocketAddr>,), Error = warp::reject::Rejection> + Copy {
+#[allow(dead_code)]
+pub fn remoteip(
+    do_xff: bool,
+) -> impl Filter<Extract = (Option<SocketAddr>,), Error = warp::reject::Rejection> + Copy {
     warp::addr::remote()
         .and(warp::header::optional::<String>("X-Forwarded-For"))
         .and(warp::header::optional::<String>("X-Real-Ip"))
         .and(warp::header::optional::<String>("Forwarded"))
-        .map(move |addr: Option<SocketAddr>, xff: Option<String>, xri: Option<String>, fwd: Option<String>| {
-            parse_remoteip(addr, do_xff, xff, xri, fwd)
-        })
+        .map(
+            move |addr: Option<SocketAddr>,
+                  xff: Option<String>,
+                  xri: Option<String>,
+                  fwd: Option<String>| { parse(addr, do_xff, xff, xri, fwd) },
+        )
 }
-

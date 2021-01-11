@@ -8,8 +8,9 @@ use structopt::StructOpt;
 use tokio::task;
 
 mod lehmer64;
-//mod remoteip;
+mod logger;
 mod randomstream;
+mod remoteip;
 mod server;
 mod template;
 
@@ -27,8 +28,16 @@ pub struct Config {
     // Settings for the index file.
     pub index: Index,
 
+    // access.log
+    #[serde(rename = "access-log")]
+    pub access_log: Option<String>,
+
     // max file size.
-    #[serde(rename = "max-file-size", deserialize_with = "deserialize_size")]
+    #[serde(
+        default,
+        rename = "max-file-size",
+        deserialize_with = "deserialize_size"
+    )]
     pub max_file_size: Option<u64>,
 
     // Use X-Forwarded-For/X-Real-Ip/Forwarded headers (unused for now).
@@ -236,4 +245,3 @@ where
     let s: &str = de::Deserialize::deserialize(deserializer)?;
     server::size(s).map(Some).map_err(de::Error::custom)
 }
-

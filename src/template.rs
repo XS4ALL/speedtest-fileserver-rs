@@ -6,8 +6,8 @@ use once_cell::sync::Lazy;
 use serde::Serialize;
 use woothee::parser::Parser;
 
-use crate::Config;
 use crate::server;
+use crate::Config;
 
 static AGENT_PARSER: Lazy<Parser> = Lazy::new(|| Parser::new());
 
@@ -24,28 +24,25 @@ struct Browser<'a> {
 
 impl Browser<'_> {
     fn parse(agent: &str) -> Option<Browser<'_>> {
-        AGENT_PARSER.parse(agent).map(|w|
-            Browser {
-                name:   w.name,
-                category:   w.category,
-                os: w.os,
-                os_version: w.os_version,
-                browser_type: w.browser_type,
-                version: w.version,
-                vendor: w.vendor,
-            }
-        )
+        AGENT_PARSER.parse(agent).map(|w| Browser {
+            name: w.name,
+            category: w.category,
+            os: w.os,
+            os_version: w.os_version,
+            browser_type: w.browser_type,
+            version: w.version,
+            vendor: w.vendor,
+        })
     }
 }
 
 #[derive(Debug, Serialize)]
 struct Vars<'a, 'b> {
-    browser:    Option<Browser<'a>>,
-    sizes:      &'b Vec<String>,
+    browser: Option<Browser<'a>>,
+    sizes: &'b Vec<String>,
 }
 
 pub fn build(config: &Config, agent: String) -> Result<String, Box<dyn Error + Sync + Send>> {
-
     let mut hbs = Handlebars::new();
     if let Some(file) = config.index.file.as_ref() {
         hbs.register_template_file("index", file)?;
@@ -65,9 +62,8 @@ pub fn build(config: &Config, agent: String) -> Result<String, Box<dyn Error + S
 
     let vars = Vars {
         browser: Browser::parse(&agent),
-        sizes:   &config.index.sizes,
+        sizes: &config.index.sizes,
     };
 
     Ok(hbs.render("index", &vars)?)
 }
-
