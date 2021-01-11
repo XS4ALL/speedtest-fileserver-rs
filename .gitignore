@@ -1,2 +1,7 @@
 /target
 **/*.rs.bk
+debian/.debhelper/
+debian/files
+debian/speedtest-fileserver/
+debian/*.debhelper.log
+debian/*.substvars
