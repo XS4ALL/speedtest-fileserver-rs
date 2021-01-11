@@ -89,7 +89,12 @@ impl FileServer {
 
             loop {
                 let value = tokio::select! {
-                    value = strm.next() => value.unwrap(),
+                    value = strm.next() => {
+                        match value {
+                            Some(value) => value,
+                            None => break,
+                        }
+                    }
                     _ = &mut timeout => break,
                 };
                 timeout.reset(Instant::now() + SEND_TIMEOUT);
@@ -99,17 +104,18 @@ impl FileServer {
 
         // response headers and body.
         let resp = Response::builder()
-            .header("Content-Type", "application/binary")
+            .header("content-type", "application/binary")
             .header(
-                "Content-Disposition",
+                "content-disposition",
                 format!("attachment; filename={}", filename).as_str(),
             )
-            .header("Content-Length", sz.to_string().as_str())
+            .header("content-length", sz.to_string().as_str())
             .header(
-                "Cache-Control",
+                "cache-control",
                 "no-cache, no-store, no-transform, must-revalidate",
             )
-            .header("Pragma", "no-cache")
+            .header("pragma", "no-cache")
+            .header("connection", "close")
             .status(StatusCode::OK);
         log_info.log_on_drop(self.access_log.clone(), self.config.xff);
         log_info.wrap(resp, stream)
