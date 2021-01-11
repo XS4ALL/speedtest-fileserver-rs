@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 use std::time::Instant;
 
+use chrono::{DateTime, offset::Local};
 use hyper::body::Body;
 use tokio::stream::Stream;
 use warp::reply::Response as HyperResponse;
@@ -176,7 +177,9 @@ impl LogInfo {
             .map(|a| a.ip().to_string())
             .unwrap_or(String::from("unknown"));
 
-        let start_date = "";
+        let now: DateTime<Local> = Local::now();
+        let timestamp = now.format("%d/%b/%Y:%H:%M:%S %z");
+
         let referer = data.referer.as_ref().map(|s| s.as_str()).unwrap_or("");
         let agent = data.agent.as_ref().map(|s| s.as_str()).unwrap_or("");
         let length = if data.length == 0 {
@@ -185,13 +188,15 @@ impl LogInfo {
             data.length.to_string()
         };
 
-        // apache default log format:
+        let elapsed_ms = data.start.elapsed().as_millis() as f64;
+
+        // log format, apache like:
         // remote - - [date] "METHOD path version" status length "referer" "agent"
         let _ = writeln!(
             file,
-            "{remote} - - {date} \"{method} {path} {version:?}\" {status} {length} \"{referer}\" \"{agent}\"",
+            "{remote} - - [{date}] \"{method} {path} {version:?}\" {status} {length} \"{referer}\" \"{agent}\" {elapsed:.03}s",
             remote = addr,
-            date = start_date,
+            date = timestamp,
             method = data.method,
             path = data.path,
             version = data.version,
@@ -199,6 +204,7 @@ impl LogInfo {
             length = length,
             referer = referer,
             agent = agent,
+            elapsed = elapsed_ms / 1000f64,
         );
     }
 }
