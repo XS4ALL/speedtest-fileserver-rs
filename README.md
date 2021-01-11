@@ -34,7 +34,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 You do need a recent rust version (from end 2020 or later).
 
-then build it with
+then build the server with
 ```
 cargo build --release`
 ```
@@ -51,14 +51,14 @@ This was developed on Debian/10 (buster).
 First install rust, then install the build tools we need:
 
 ```
-apt add build-essential debhelper dh-systemd fakeroot
+sudo apt add build-essential debhelper dh-systemd fakeroot
 ```
 
 Now run `dpkg-buildpackage -r fakeroot -us uc` and there should
 be a `.deb` package in the parent directory.
 
 After installing, you might want to customize `/etc/speedtest-fileserver.cfg`
-and perhaps `/etc/logrotate.d/speedtest-fileserver .
+and perhaps `/etc/logrotate.d/speedtest-fileserver`.
 
 ## Configuration.
 
