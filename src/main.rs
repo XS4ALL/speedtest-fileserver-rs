@@ -41,7 +41,7 @@ pub struct Config {
     pub max_file_size: Option<u64>,
 
     // Use X-Forwarded-For/X-Real-Ip/Forwarded headers (unused for now).
-    #[serde(rename = "xff-headers", default)]
+    #[serde(rename = "use-xff-headers", default)]
     pub xff: bool,
 }
 
