@@ -19,6 +19,7 @@
     }
     .h2 {
       font-size: 1.2em;
+      padding-left: 0.6em;
     }
   </style>
 </head>
@@ -28,16 +29,16 @@
 {{#if (eq browser.category "pc")}}
   <div class="h2">
   {{#if (and (contains browser.os "Mac") (eq browser.name "Safari"))}}
-    To watch the speed and follow the progress of the download,<br>press key combination: ⌥⌘L .
+    To view download speed and progress,<br>press key combination: ⌥⌘L .
   {{/if}}
   {{#if (and (contains browser.os "Mac") (eq browser.name "Chrome"))}}
-    To watch the speed and follow the progress of the download,<br>press key combination: ⌥⌘L .
+    To view download speed and progress,<br>press key combination: ⌥⌘L .
   {{/if}}
   {{#if (and (contains browser.os "Mac") (eq browser.name "Firefox"))}}
-    To watch the speed and follow the progress of the download,<br>press key combination: ⌘J .
+    To view download speed and progress,<br>press key combination: ⌘J .
   {{/if}}
   {{#if (eq browser.os "Windows")}}
-    To watch the speed and follow the progress of the download,<br>press key combination: Ctrl+J.
+    To view download speed and progress,<br>press key combination: Ctrl+J.
   {{/if}}
   </div>
   <p></p>
@@ -48,14 +49,14 @@
   <tr><th colspan="3"><hr></th></tr>
 
   <tr>
-    <td><a href="..">Parent Directory</a></td>
+    <td class="mono"><a href="..">Parent Directory</a></td>
     <td>&nbsp;</td>
     <td class="mono" align="right">[DIR]</td>
   </tr>
 
   {{#each sizes}}
   <tr>
-    <td><a href="{{this}}.bin">{{this}}.bin</a></td>
+    <td class="mono"><a href="{{this}}.bin">{{this}}.bin</a></td>
     <td class="mono">2018-23-01 13:37</td>
     <td class="mono" align="right">{{size(this)}}</td>
   </tr>
