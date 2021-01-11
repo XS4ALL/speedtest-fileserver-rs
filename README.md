@@ -65,3 +65,15 @@ and perhaps `/etc/logrotate.d/speedtest-fileserver`.
 The features mentioned above can be configured via the configuration file.
 See the comments in the [example configuration file](speedtest-fileserver.cfg).
 
+## Bugs.
+
+When access-log logging is enabled, the server logs download size and speed
+(seconds elapsed, with ms accuracy). However due to internal buffering in the
+libraries used and the OS itself, a logentry is written before all data has
+been transferred to the client. The buffering might be a few MB, so using
+size-of-download and time-elapsed to calculate download speeds is not
+recommended, unless the download size is considerably larger than the
+size of the internal buffers (say, 1GB and up).
+
+If you need precision in the logs, try if a front-end proxy like nginx has
+better accuracy.
