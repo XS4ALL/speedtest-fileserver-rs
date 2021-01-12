@@ -51,6 +51,12 @@ pub fn build(config: &Config, agent: String) -> Result<String, Box<dyn Error + S
         hbs.register_template_string("index", index)?;
     }
 
+    for partial in &config.index.partials {
+        let base = partial.split('/').last().unwrap();
+        let name = base.rsplitn(2, '.').last().unwrap();
+        hbs.register_template_file(name, partial)?;
+    }
+
     handlebars_helper!(size: |sz: str| {
         server::size(sz).unwrap_or(0)
     });

@@ -49,6 +49,8 @@ pub struct Config {
 pub struct Index {
     pub file: Option<PathBuf>,
     pub sizes: Vec<String>,
+    #[serde(default)]
+    pub partials: Vec<String>,
 }
 
 #[derive(Clone, Deserialize, Debug)]
