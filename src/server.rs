@@ -124,11 +124,7 @@ impl FileServer {
     fn log(&self, info: warp::log::Info) {
         // Don't log streams here.
         let file = info.path().split('/').last().unwrap();
-        let is_num = file
-            .chars()
-            .next()
-            .map(|c| c.is_numeric())
-            .unwrap_or(false);
+        let is_num = file.chars().next().map(|c| c.is_numeric()).unwrap_or(false);
         if is_num && info.status() == http::StatusCode::OK {
             return;
         }

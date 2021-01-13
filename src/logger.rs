@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 use std::time::Instant;
 
-use chrono::{DateTime, offset::Local};
+use chrono::{offset::Local, DateTime};
 use hyper::body::Body;
 use tokio::stream::Stream;
 use warp::reply::Response as HyperResponse;
@@ -176,7 +176,11 @@ impl LogInfo {
         let addr = addr
             .map(|a| a.ip().to_string())
             .unwrap_or(String::from("unknown"));
-        let addr = if addr.starts_with("::ffff:") { &addr[7..] } else { &addr };
+        let addr = if addr.starts_with("::ffff:") {
+            &addr[7..]
+        } else {
+            &addr
+        };
 
         let now: DateTime<Local> = Local::now();
         let timestamp = now.format("%d/%b/%Y:%H:%M:%S %z");
