@@ -139,8 +139,23 @@ impl FileServer {
         log_info.log();
     }
 
+    fn redirect(
+        &self,
+        uri: Option<&http::Uri>,
+    ) -> impl Filter<Extract = (impl Reply,), Error = warp::reject::Rejection> + Clone {
+        let uri = uri.cloned();
+        warp::any()
+            .map(move || uri.clone())
+            .and_then(|uri: Option<http::Uri>| async move {
+                match uri {
+                    Some(uri) => Ok(warp::redirect::temporary(uri)),
+                    None => Err(warp::reject::not_found()),
+                }
+            })
+    }
+
     // bundle up "index" and "data" into one Filter.
-    pub fn routes(&self) -> BoxedFilter<(impl Reply,)> {
+    pub fn routes(&self, redirect_uri: Option<&http::Uri>) -> BoxedFilter<(impl Reply,)> {
         let config = self.config.clone();
         let this = self.clone();
         let index = warp::path::end()
@@ -154,7 +169,9 @@ impl FileServer {
             .map(move |param: String, log_info: LogInfo| this.data(param, log_info));
 
         let this = self.clone();
-        data.or(index)
+        self.redirect(redirect_uri)
+            .or(data)
+            .or(index)
             .with(warp::log::custom(move |info| this.log(info)))
             .boxed()
     }

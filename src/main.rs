@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::net::{AddrParseError, IpAddr, SocketAddr};
 use std::panic;
 use std::path::PathBuf;
@@ -57,6 +58,8 @@ pub struct Index {
 pub struct Http {
     // [addr:]port to listen on.
     pub listen: Vec<String>,
+    #[serde(deserialize_with = "deserialize_uri", default)]
+    pub redirect: Option<http::Uri>,
 }
 
 #[derive(Clone, Deserialize, Debug)]
@@ -172,12 +175,14 @@ async fn async_main() {
 
     // build routes.
     let server = server::FileServer::new(&config);
-    let routes = server.routes();
+    let http_redirect = config.http.as_ref().map(|h| h.redirect.as_ref()).flatten();
+    let http_routes = server.routes(http_redirect);
+    let https_routes = server.routes(None);
 
     // Run all servers.
     let mut handles = Vec::new();
     for (addr, name) in &http_listen {
-        match warp::serve(routes.clone()).try_bind_ephemeral(addr.clone()) {
+        match warp::serve(http_routes.clone()).try_bind_ephemeral(addr.clone()) {
             Ok((_, srv)) => {
                 log::info!("Listening on {}", name);
                 handles.push(task::spawn(srv));
@@ -189,7 +194,7 @@ async fn async_main() {
     if let Some((https_key, https_chain)) = https {
         for (addr, name) in &https_listen {
             // why no try_bind_ephemeral in the TlsServer?
-            let srv = warp::serve(routes.clone());
+            let srv = warp::serve(https_routes.clone());
             let srv = srv
                 .tls()
                 .key_path(&https_key)
@@ -246,4 +251,12 @@ where
 {
     let s: String = de::Deserialize::deserialize(deserializer)?;
     server::size(&s).map(Some).map_err(de::Error::custom)
+}
+
+fn deserialize_uri<'de, D>(deserializer: D) -> Result<Option<http::Uri>, D::Error>
+where
+    D: de::Deserializer<'de>,
+{
+    let s: String = de::Deserialize::deserialize(deserializer)?;
+    http::Uri::try_from(s).map(Some).map_err(de::Error::custom)
 }
