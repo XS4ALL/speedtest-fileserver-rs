@@ -8,7 +8,7 @@ use std::time::Instant;
 
 use chrono::{offset::Local, DateTime};
 use hyper::body::Body;
-use tokio::stream::Stream;
+use tokio_stream::Stream;
 use warp::reply::Response as HyperResponse;
 use warp::Filter;
 

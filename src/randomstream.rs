@@ -5,7 +5,7 @@ use std::task::{Context, Poll};
 
 use bytes::Bytes;
 use rand::{Rng, SeedableRng};
-use tokio::stream::Stream;
+use tokio_stream::Stream;
 
 use crate::lehmer64::Lehmer64_3 as RandomGenerator;
 

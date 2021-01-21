@@ -1,3 +1,9 @@
+speedtest-fileserver (1.1.0) buster; urgency=low
+
+  * update to tokio 1.0
+
+ -- Miquel van Smoorenburg (XS4ALL) <mikevs@xs4all.net>  Thu, 21 Jan 2021 11:39:23 +0100
+
 speedtest-fileserver (1.0) buster; urgency=low
 
   * port to warp instead of hyper, so we can have TLS support

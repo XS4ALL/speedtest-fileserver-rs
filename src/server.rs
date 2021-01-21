@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use http::{Response, StatusCode};
 use human_size::{Byte, ParsingError, Size, SpecificSize};
 use hyper::body::Body;
-use tokio::stream::StreamExt;
+use tokio_stream::StreamExt;
 use tokio::time::{Duration, Instant};
 use warp::reply::Response as HyperResponse;
 use warp::{filters::BoxedFilter, Filter, Reply};
@@ -85,7 +85,7 @@ impl FileServer {
         // wrap the RandomStream in another stream, so we can handle timeouts etc.
         let stream = Box::pin(async_stream::stream! {
             let mut strm = RandomStream::new(sz);
-            let mut timeout = tokio::time::delay_for(SEND_TIMEOUT);
+            let mut timeout = Box::pin(tokio::time::sleep(SEND_TIMEOUT));
 
             loop {
                 let value = tokio::select! {
@@ -95,9 +95,9 @@ impl FileServer {
                             None => break,
                         }
                     }
-                    _ = &mut timeout => break,
+                    _ = timeout.as_mut() => break,
                 };
-                timeout.reset(Instant::now() + SEND_TIMEOUT);
+                timeout.as_mut().reset(Instant::now() + SEND_TIMEOUT);
                 yield value;
             }
         });
