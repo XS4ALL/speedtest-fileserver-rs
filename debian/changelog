@@ -1,4 +1,4 @@
-speedtest-fileserver (1.1.0) buster; urgency=low
+speedtest-fileserver (1.1.1) buster; urgency=low
 
   * update to tokio 1.0
 
