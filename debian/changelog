@@ -1,3 +1,9 @@
+speedtest-fileserver (1.2.0) buster; urgency=low
+
+  * release 1.2.0
+
+ -- Miquel van Smoorenburg (XS4ALL) <mikevs@xs4all.net>  Thu, 04 Mar 2021 22:55:29 +0100
+
 speedtest-fileserver (1.1.1) buster; urgency=low
 
   * update to tokio 1.0

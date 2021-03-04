@@ -10,9 +10,14 @@ Then install the build tools we need:
 sudo apt add build-essential debhelper dh-systemd fakeroot
 ```
 
-Now run `dpkg-buildpackage -r fakeroot -us uc` and there should
-be a `.deb` package in the parent directory.
+Now run:
+
+```
+dpkg-buildpackage -rfakeroot -us -uc`
+````
+
+and there should be a `.deb` package in the parent directory.
 
 After installing, you might want to customize `/etc/speedtest-fileserver.cfg`
-and perhaps `/etc/logrotate.d/speedtest-fileserver`.
+and perhaps `/etc/logrotate.d/speedtest-fileserver.conf`.
 
