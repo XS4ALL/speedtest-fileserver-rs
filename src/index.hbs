@@ -1,5 +1,6 @@
 <html>
 <head>
+  <meta name="robots" content="noindex">
   <title>Speedtest download</title>
   <style>
     body {
@@ -26,19 +27,21 @@
 <body>
 <h1>Speedtest - file download test</h1>
 
+Click on a file below to start the download test.
+
 {{#if (eq browser.category "pc")}}
   <div class="h2">
   {{#if (and (contains browser.os "Mac") (eq browser.name "Safari"))}}
-    To view download speed and progress,<br>press key combination: ⌥⌘L .
+    To then view download speed and progress,<br>press key combination: ⌥⌘L .
   {{/if}}
   {{#if (and (contains browser.os "Mac") (eq browser.name "Chrome"))}}
-    To view download speed and progress,<br>press key combination: ⌥⌘L .
+    To then view download speed and progress,<br>press key combination: ⌥⌘L .
   {{/if}}
   {{#if (and (contains browser.os "Mac") (eq browser.name "Firefox"))}}
-    To view download speed and progress,<br>press key combination: ⌘J .
+    To then view download speed and progress,<br>press key combination: ⌘J .
   {{/if}}
   {{#if (eq browser.os "Windows")}}
-    To view download speed and progress,<br>press key combination: Ctrl+J.
+    To then view download speed and progress,<br>press key combination: Ctrl+J.
   {{/if}}
   </div>
   <p></p>

@@ -1,3 +1,9 @@
+speedtest-fileserver (1.3.0) buster; urgency=low
+
+  * minor index.hbs update
+
+ -- Miquel van Smoorenburg (XS4ALL) <mikevs@xs4all.net>  Tue, 11 May 2021 17:41:12 +0200
+
 speedtest-fileserver (1.2.0) buster; urgency=low
 
   * release 1.2.0
